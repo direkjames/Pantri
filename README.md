@@ -31,6 +31,8 @@
 - **Templates.** Save a list as a template, such as "Weekly shop", and start a fresh copy any time.
 - **Prices and totals.** See what is still to buy, and whether it fits what you have left.
 - **Price history.** See what an item cost the last few times you bought it.
+- **Stores and price compare.** Add the stores you shop at, note what each one charges, and see which is cheapest. Different pack sizes are compared per kg or per litre. Tick a list to a store and what you pay is saved as that store's price.
+- **Backup and restore.** Pick a folder and Pantri saves a backup file there, on a schedule you choose (every few days, or weekly on a day). Restore from any backup file.
 - **Cutoff budget.** Set your budget in pesos for each pay period. Checking an item off counts it as spent. See what is left, where the money went, and how you did in past cutoffs.
 - **Recipe book.** Type in a recipe from anywhere, with its ingredients and steps. One tap sends the ingredients to a list, and you can untick the ones you already have.
 - **Meal plan.** Plan breakfast, lunch, dinner and snacks for each day. One tap adds the whole week's ingredients to a list, and matching items add up.

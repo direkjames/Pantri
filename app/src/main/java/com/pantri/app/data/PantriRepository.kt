@@ -118,8 +118,90 @@ class PantriRepository(
             if (unitPrice > 0 && !(last != null && last.unitPriceCentavos == unitPrice && t - last.at < DAY_MS)) {
                 dao.insertPrice(PriceEntry(productKey = key, unitPriceCentavos = unitPrice, at = t))
             }
+            // On a list tied to a store, what you paid becomes that store's price for the item.
+            val storeId = dao.getList(item.listId)?.storeId
+            if (storeId != null && item.priceCentavos > 0 && dao.storeExists(storeId) > 0) {
+                dao.upsertStorePrice(StorePrice(productKey = key, storeId = storeId, priceCentavos = item.priceCentavos, quantity = item.quantity, unit = item.unit, at = t))
+            }
         }
     }
+
+    // Stores and per-store prices
+    fun stores() = dao.observeStores()
+    fun storePrices() = dao.observeStorePrices()
+
+    /** Adds a store, or returns the one you already have with that name. Null when the name is blank or you hit the limit. */
+    suspend fun addStore(name: String): Long? = db.withTransaction {
+        val n = name.clean(Limits.NAME)
+        if (n.isEmpty()) return@withTransaction null
+        val all = dao.allStores()
+        all.firstOrNull { it.name.equals(n, ignoreCase = true) }?.let { return@withTransaction it.id }
+        if (all.size >= Limits.MAX_STORES) null else dao.insertStore(Store(name = n, createdAt = now()))
+    }
+
+    suspend fun renameStore(store: Store, name: String) {
+        if (name.isNotBlank()) dao.updateStore(store.copy(name = name.clean(Limits.NAME)))
+    }
+
+    suspend fun deleteStore(id: Long) = db.withTransaction {
+        dao.clearListStore(id)
+        dao.deleteStore(id)
+    }
+
+    /** Saves what [productKey] costs at [storeId]: [priceCentavos] pays for [quantity] [unit]. Ignored if the store was deleted meanwhile. */
+    suspend fun setStorePrice(productKey: String, storeId: Long, priceCentavos: Long, quantity: Double, unit: String) {
+        if (productKey.isBlank() || dao.storeExists(storeId) == 0) return
+        dao.upsertStorePrice(
+            StorePrice(
+                productKey = productKey.trim().lowercase().take(Limits.NAME), storeId = storeId,
+                priceCentavos = priceCentavos.coerceIn(1, Limits.MAX_PRICE_CENTAVOS), quantity = quantity.coerceIn(0.0001, Limits.MAX_QUANTITY),
+                unit = unit.clean(Limits.UNIT), at = now(),
+            ),
+        )
+    }
+
+    suspend fun clearStorePrice(productKey: String, storeId: Long) = dao.deleteStorePrice(productKey, storeId)
+
+    suspend fun setListStore(listId: Long, storeId: Long?) =
+        dao.setListStore(listId, storeId?.takeIf { dao.storeExists(it) > 0 })
+
+    // Backup and restore
+    suspend fun exportBackup(): BackupData = db.withTransaction {
+        val s = settings.settings.first()
+        BackupData(
+            now(), s.darkMode, s.haptics, s.defaultBudgetCentavos, dao.allLists(), dao.allItems(), dao.allProducts(), dao.allPrices(),
+            dao.allRecipes(), dao.allIngredients(), dao.allMeals(), dao.allBudgets(), dao.allStores(), dao.allStorePrices(),
+        )
+    }
+
+    /** Replaces everything with [d] in one transaction: if anything fails, nothing changes. Rows pointing at missing parents are dropped. */
+    suspend fun restoreBackup(d: BackupData) {
+        db.withTransaction {
+            val storeIds = d.stores.map { it.id }.toSet()
+            val lists = d.lists.distinctBy { it.id }.map { if (it.storeId != null && it.storeId !in storeIds) it.copy(storeId = null) else it }
+            val listIds = lists.map { it.id }.toSet()
+            val recipes = d.recipes.distinctBy { it.id }
+            val recipeIds = recipes.map { it.id }.toSet()
+            dao.wipeLists(); dao.wipeRecipes(); dao.wipeMeals(); dao.wipeProducts(); dao.wipePrices(); dao.wipeBudgets(); dao.wipeStores()
+            dao.putStores(d.stores.distinctBy { it.id })
+            dao.putLists(lists)
+            dao.insertItems(d.items.distinctBy { it.id }.filter { it.listId in listIds })
+            dao.putRecipes(recipes)
+            dao.insertIngredients(d.ingredients.distinctBy { it.id }.filter { it.recipeId in recipeIds })
+            dao.putMeals(d.meals.distinctBy { it.id }.map { if (it.recipeId != null && it.recipeId !in recipeIds) it.copy(recipeId = null) else it })
+            dao.putProducts(d.products.distinctBy { it.key })
+            dao.putPrices(d.prices.distinctBy { it.id })
+            dao.putBudgets(d.budgets.distinctBy { it.key })
+            dao.putStorePrices(d.storePrices.distinctBy { it.productKey to it.storeId }.filter { it.storeId in storeIds })
+        }
+        d.darkMode?.let { settings.setDarkMode(it) }
+        d.haptics?.let { settings.setHaptics(it) }
+        d.defaultBudget?.takeIf { it > 0 }?.let { settings.setDefaultBudget(it) }
+    }
+
+    suspend fun setBackupFolder(uri: String) = settings.setBackupFolder(uri)
+    suspend fun setBackupSchedule(days: Int, weekday: Int) = settings.setBackupSchedule(days, weekday)
+    suspend fun setBackupResult(at: Long, error: String?) = settings.setBackupResult(at, error)
 
     /** Saves the new order. [ordered] is the whole list in its new order. */
     suspend fun reorder(ordered: List<Item>) = db.withTransaction {

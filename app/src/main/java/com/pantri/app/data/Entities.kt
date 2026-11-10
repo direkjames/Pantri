@@ -14,6 +14,31 @@ data class GroceryList(
     val name: String,
     val isTemplate: Boolean = false,
     val createdAt: Long,
+    /** The store you plan to shop at for this list; null for none. Cleared in code when the store is deleted. */
+    val storeId: Long? = null,
+)
+
+@Entity(tableName = "stores")
+data class Store(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val createdAt: Long,
+)
+
+/** The latest price of one product at one store: [priceCentavos] pays for [quantity] [unit] (unit may be empty). */
+@Entity(
+    tableName = "store_prices",
+    foreignKeys = [ForeignKey(Store::class, ["id"], ["storeId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("productKey", "storeId", unique = true), Index("storeId")],
+)
+data class StorePrice(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val productKey: String,
+    val storeId: Long,
+    val priceCentavos: Long,
+    val quantity: Double = 1.0,
+    val unit: String = "",
+    val at: Long,
 )
 
 @Entity(

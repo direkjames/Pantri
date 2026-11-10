@@ -41,6 +41,7 @@ import com.pantri.app.ui.screens.RecipeDetailScreen
 import com.pantri.app.ui.screens.RecipeEditorScreen
 import com.pantri.app.ui.screens.RecipesScreen
 import com.pantri.app.ui.screens.SettingsScreen
+import com.pantri.app.ui.screens.StoresScreen
 import com.pantri.app.ui.theme.pantri
 import androidx.compose.material3.MaterialTheme
 
@@ -72,8 +73,10 @@ fun PantriRoot(haptics: Boolean) {
                         onOpenList = { nav.navigate("list/$it") },
                         onNavigate = { nav.goTab(it) },
                         onSettings = { nav.navigate("settings") },
+                        onStores = { nav.navigate("stores") },
                     )
                 }
+                composable("stores") { StoresScreen(onBack = { nav.popBackStack() }) }
                 composable("recipes") { RecipesScreen(onOpen = { nav.navigate("recipe/$it") }, onNew = { nav.navigate("recipeEdit/0") }) }
                 composable("plan") { PlanScreen(onNewRecipe = { nav.navigate("recipeEdit/0") }, onOpenList = { nav.navigate("list/$it") }) }
                 composable("budget") { BudgetScreen() }

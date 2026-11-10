@@ -9,6 +9,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.pantri.app.PantriApp
+import com.pantri.app.data.BackupData
+import com.pantri.app.data.BackupException
+import com.pantri.app.data.BackupService
+import com.pantri.app.data.Store
+import com.pantri.app.data.StorePrice
 import com.pantri.app.data.CutoffSummary
 import com.pantri.app.data.GroceryList
 import com.pantri.app.data.HistoryRow
@@ -84,8 +89,13 @@ class ListVm(private val repo: PantriRepository, val listId: Long) : ViewModel()
     val items = repo.items(listId).hold(viewModelScope, emptyList<Item>())
     val products = repo.products().hold(viewModelScope, emptyList<Product>())
     val summary: StateFlow<CutoffSummary?> = currentCutoff().flatMapLatest { repo.observeCutoff(it) }.hold(viewModelScope, null)
+    val stores = repo.stores().hold(viewModelScope, emptyList<Store>())
 
     fun priceHistory(key: String) = repo.priceHistory(key)
+    /** Ties the list to [storeId], or to a brand new store when [newName] is typed (that wins). */
+    fun pickStore(storeId: Long?, newName: String) = viewModelScope.launch(safeLaunch) {
+        repo.setListStore(listId, if (newName.isNotBlank()) repo.addStore(newName) else storeId)
+    }
 
     fun addQuick(name: String, product: Product?) = viewModelScope.launch(safeLaunch) {
         val n = name.trim()
@@ -161,8 +171,43 @@ class BudgetVm(private val repo: PantriRepository) : ViewModel() {
     fun setCutoffBudget(centavos: Long) = viewModelScope.launch(safeLaunch) { repo.setCutoffBudget(cutoff.value, centavos) }
 }
 
-class SettingsVm(private val repo: PantriRepository) : ViewModel() {
+/** Stores, the price you saw at each one, and the product list to pick from. */
+class StoresVm(private val repo: PantriRepository) : ViewModel() {
+    val stores = repo.stores().hold(viewModelScope, emptyList<Store>())
+    val prices = repo.storePrices().hold(viewModelScope, emptyList<StorePrice>())
+    val products = repo.products().hold(viewModelScope, emptyList<Product>())
+
+    fun addStore(name: String, onDone: (Long?) -> Unit = {}) = viewModelScope.launch(safeLaunch) { onDone(repo.addStore(name)) }
+    fun renameStore(store: Store, name: String) = viewModelScope.launch(safeLaunch) { repo.renameStore(store, name) }
+    fun deleteStore(id: Long) = viewModelScope.launch(safeLaunch) { repo.deleteStore(id) }
+    fun setPrice(key: String, storeId: Long, centavos: Long, quantity: Double, unit: String) =
+        viewModelScope.launch(safeLaunch) { repo.setStorePrice(key, storeId, centavos, quantity, unit) }
+    fun clearPrice(key: String, storeId: Long) = viewModelScope.launch(safeLaunch) { repo.clearStorePrice(key, storeId) }
+}
+
+class SettingsVm(private val repo: PantriRepository, private val backup: BackupService) : ViewModel() {
     val settings = repo.settingsFlow.hold(viewModelScope, Settings())
+
+    /** A backup file the user picked, read and checked, waiting for them to confirm the restore. */
+    val pending = MutableStateFlow<BackupData?>(null)
+    val busy = MutableStateFlow(false)
+
+    private fun run(block: suspend () -> Unit) = viewModelScope.launch(safeLaunch) {
+        busy.value = true
+        try { block() } catch (e: BackupException) { UiErrors.events.tryEmit(e.message ?: "Something went wrong.") } finally { busy.value = false }
+    }
+
+    fun setFolder(uri: String) = viewModelScope.launch(safeLaunch) { repo.setBackupFolder(uri) }
+    fun setSchedule(days: Int, weekday: Int) = viewModelScope.launch(safeLaunch) { repo.setBackupSchedule(days, weekday) }
+    fun backupNow() = run { backup.backupNow().fold({ UiErrors.events.tryEmit("Backup saved.") }, { throw it }) }
+    fun pick(uri: android.net.Uri) = run { pending.value = backup.read(uri) }
+    fun cancelRestore() { pending.value = null }
+    fun confirmRestore() = run {
+        val d = pending.value ?: return@run
+        backup.restore(d)
+        pending.value = null
+        UiErrors.events.tryEmit("Restored from your backup.")
+    }
 
     fun setDark(on: Boolean) = viewModelScope.launch(safeLaunch) { repo.setDarkMode(on) }
     fun setHaptics(on: Boolean) = viewModelScope.launch(safeLaunch) { repo.setHaptics(on) }

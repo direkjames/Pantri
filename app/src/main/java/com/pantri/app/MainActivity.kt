@@ -16,8 +16,16 @@ import com.pantri.app.ui.PantriRoot
 import com.pantri.app.ui.theme.PantriTheme
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    // Each time the app comes to the front, take the scheduled backup if one is due.
+    override fun onStart() {
+        super.onStart()
+        val app = application as PantriApp
+        app.appScope.launch { app.backup.autoBackupIfDue() }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()
         super.onCreate(savedInstanceState)

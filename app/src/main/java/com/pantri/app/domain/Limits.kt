@@ -6,6 +6,7 @@ object Limits {
     const val UNIT = 16
     const val NOTE = 200
     const val STEPS = 5_000
+    const val MAX_STORES = 30
     const val MAX_PRICE_CENTAVOS = 99_999_999_900L
     const val MAX_QUANTITY = 999_999.0
 }

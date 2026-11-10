@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Storefront
 import androidx.compose.material.icons.rounded.ShoppingCart
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -71,7 +72,7 @@ import java.time.LocalTime
 private val tones = listOf(Tone.Green, Tone.Yellow, Tone.Orange, Tone.Red)
 
 @Composable
-fun HomeScreen(onOpenList: (Long) -> Unit, onNavigate: (String) -> Unit, onSettings: () -> Unit) {
+fun HomeScreen(onOpenList: (Long) -> Unit, onNavigate: (String) -> Unit, onSettings: () -> Unit, onStores: () -> Unit) {
     val vm = pantriVm { HomeVm(it) }
     val lists by vm.lists.collectAsStateWithLifecycle()
     val templates by vm.templates.collectAsStateWithLifecycle()
@@ -96,10 +97,20 @@ fun HomeScreen(onOpenList: (Long) -> Unit, onNavigate: (String) -> Unit, onSetti
         }
         item { summary?.let { BudgetHero(it) { editBudget = true } } ?: Spacer(Modifier.height(170.dp)) }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                QuickTile("New list", Icons.Rounded.Add, Tone.Green, Modifier.weight(1f)) { newList = true }
-                QuickTile("Plan meals", Icons.Rounded.CalendarMonth, Tone.Orange, Modifier.weight(1f)) { onNavigate("plan") }
-                QuickTile("Recipes", Icons.AutoMirrored.Rounded.MenuBook, Tone.Red, Modifier.weight(1f)) { onNavigate("recipes") }
+            val tiles = listOf<Triple<String, androidx.compose.ui.graphics.vector.ImageVector, Pair<Tone, () -> Unit>>>(
+                Triple("New list", Icons.Rounded.Add, Tone.Green to { newList = true }),
+                Triple("Plan meals", Icons.Rounded.CalendarMonth, Tone.Orange to { onNavigate("plan") }),
+                Triple("Recipes", Icons.AutoMirrored.Rounded.MenuBook, Tone.Red to { onNavigate("recipes") }),
+                Triple("Stores", Icons.Rounded.Storefront, Tone.Yellow to onStores),
+            )
+            // At very large text four tiles in a row clip their names, so they go two by two.
+            val perRow = if (androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.3f) 2 else 4
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                tiles.chunked(perRow).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        row.forEach { (label, icon, tone) -> QuickTile(label, icon, tone.first, Modifier.weight(1f), tone.second) }
+                    }
+                }
             }
         }
         item { SectionLabel("Your lists", Modifier.padding(top = 4.dp)) }
@@ -181,7 +192,7 @@ private fun QuickTile(label: String, icon: androidx.compose.ui.graphics.vector.I
 
 @Composable
 private fun ListRow(s: ListSummary, tone: Tone, onClick: () -> Unit) {
-    PantriCard(Modifier.fillMaxWidth().clickable(onClickLabel = "Edit budget", role = Role.Button, onClick = onClick)) {
+    PantriCard(Modifier.fillMaxWidth().clickable(onClickLabel = "Open list", role = Role.Button, onClick = onClick)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconTile(Icons.Rounded.ShoppingCart, tone, size = 44.dp)
             Spacer(Modifier.size(12.dp))

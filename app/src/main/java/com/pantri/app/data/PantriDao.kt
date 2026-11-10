@@ -131,6 +131,58 @@ interface PantriDao {
     fun observeBudgets(): Flow<List<CutoffBudget>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertBudget(budget: CutoffBudget)
+
+    // Stores and per-store prices
+    @Query("SELECT * FROM stores ORDER BY name COLLATE NOCASE")
+    fun observeStores(): Flow<List<Store>>
+
+    @Insert suspend fun insertStore(store: Store): Long
+
+    @Update suspend fun updateStore(store: Store)
+
+    @Query("DELETE FROM stores WHERE id = :id") suspend fun deleteStore(id: Long)
+
+    @Query("SELECT COUNT(*) FROM stores WHERE id = :id") suspend fun storeExists(id: Long): Int
+
+    @Query("UPDATE lists SET storeId = NULL WHERE storeId = :storeId") suspend fun clearListStore(storeId: Long)
+
+    @Query("UPDATE lists SET storeId = :storeId WHERE id = :listId") suspend fun setListStore(listId: Long, storeId: Long?)
+
+    @Query("SELECT * FROM store_prices")
+    fun observeStorePrices(): Flow<List<StorePrice>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertStorePrice(price: StorePrice)
+
+    @Query("DELETE FROM store_prices WHERE productKey = :key AND storeId = :storeId") suspend fun deleteStorePrice(key: String, storeId: Long)
+
+    // Backup and restore: read everything, wipe everything, put everything back
+    @Query("SELECT * FROM lists") suspend fun allLists(): List<GroceryList>
+    @Query("SELECT * FROM items") suspend fun allItems(): List<Item>
+    @Query("SELECT * FROM products") suspend fun allProducts(): List<Product>
+    @Query("SELECT * FROM prices") suspend fun allPrices(): List<PriceEntry>
+    @Query("SELECT * FROM recipes") suspend fun allRecipes(): List<Recipe>
+    @Query("SELECT * FROM recipe_ingredients") suspend fun allIngredients(): List<RecipeIngredient>
+    @Query("SELECT * FROM meals") suspend fun allMeals(): List<Meal>
+    @Query("SELECT * FROM cutoff_budgets") suspend fun allBudgets(): List<CutoffBudget>
+    @Query("SELECT * FROM stores") suspend fun allStores(): List<Store>
+    @Query("SELECT * FROM store_prices") suspend fun allStorePrices(): List<StorePrice>
+
+    @Query("DELETE FROM lists") suspend fun wipeLists()
+    @Query("DELETE FROM recipes") suspend fun wipeRecipes()
+    @Query("DELETE FROM meals") suspend fun wipeMeals()
+    @Query("DELETE FROM products") suspend fun wipeProducts()
+    @Query("DELETE FROM prices") suspend fun wipePrices()
+    @Query("DELETE FROM cutoff_budgets") suspend fun wipeBudgets()
+    @Query("DELETE FROM stores") suspend fun wipeStores()
+
+    @Insert suspend fun putLists(rows: List<GroceryList>)
+    @Insert suspend fun putProducts(rows: List<Product>)
+    @Insert suspend fun putPrices(rows: List<PriceEntry>)
+    @Insert suspend fun putRecipes(rows: List<Recipe>)
+    @Insert suspend fun putMeals(rows: List<Meal>)
+    @Insert suspend fun putBudgets(rows: List<CutoffBudget>)
+    @Insert suspend fun putStores(rows: List<Store>)
+    @Insert suspend fun putStorePrices(rows: List<StorePrice>)
 }
 
 data class IngredientCount(val recipeId: Long, val n: Int)

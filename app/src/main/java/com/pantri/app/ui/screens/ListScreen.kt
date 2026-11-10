@@ -76,6 +76,12 @@ import com.pantri.app.data.Item
 import com.pantri.app.data.Product
 import com.pantri.app.domain.pesos
 import com.pantri.app.domain.qty
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material.icons.rounded.Storefront
+import com.pantri.app.data.Store
+import com.pantri.app.ui.StoresVm
+import com.pantri.app.ui.components.Choice
 import com.pantri.app.ui.ListVm
 import com.pantri.app.ui.LocalSnack
 import com.pantri.app.ui.components.EmptyState
@@ -110,12 +116,15 @@ fun ListScreen(listId: Long, onBack: () -> Unit) {
     val dbItems by vm.items.collectAsStateWithLifecycle()
     val products by vm.products.collectAsStateWithLifecycle()
     val summary by vm.summary.collectAsStateWithLifecycle()
+    val stores by vm.stores.collectAsStateWithLifecycle()
+    val storesVm = pantriVm { StoresVm(it) }
     val snack = LocalSnack.current
     val scope = rememberCoroutineScope()
     val haptic = rememberHaptic()
     val p = MaterialTheme.pantri
 
     var editingId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var compareId by rememberSaveable { mutableStateOf<Long?>(null) }
     var sheetName by rememberSaveable { mutableStateOf<String?>(null) }
     var menu by rememberSaveable { mutableStateOf(false) }
     var dialog by rememberSaveable { mutableStateOf<String?>(null) }
@@ -172,6 +181,7 @@ fun ListScreen(listId: Long, onBack: () -> Unit) {
                     IconButton({ menu = true }) { Icon(Icons.Rounded.MoreVert, "List options", tint = p.sub) }
                     DropdownMenu(menu, { menu = false }) {
                         DropdownMenuItem({ Text("Rename") }, { menu = false; dialog = "rename" })
+                        DropdownMenuItem({ Text("Shop at a store") }, { menu = false; dialog = "store" })
                         DropdownMenuItem({ Text("Save as template") }, { menu = false; dialog = "template" })
                         DropdownMenuItem({ Text("Remove done items") }, { menu = false; vm.removeChecked() }, enabled = doneCount > 0)
                         DropdownMenuItem({ Text("Delete list", color = MaterialTheme.colorScheme.error) }, { menu = false; dialog = "delete" })
@@ -185,7 +195,10 @@ fun ListScreen(listId: Long, onBack: () -> Unit) {
             ) {
                 item(key = "progress") {
                     PantriCard(Modifier.fillMaxWidth()) {
-                        Text("$doneCount of ${dbItems.size} done", style = MaterialTheme.typography.titleSmall)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("$doneCount of ${dbItems.size} done", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                            stores.firstOrNull { it.id == list?.storeId }?.let { Pill(it.name, Tone.Orange, icon = Icons.Rounded.Storefront) }
+                        }
                         Text("Swipe right to check, left to delete", style = MaterialTheme.typography.bodySmall, color = p.muted)
                         Spacer(Modifier.height(10.dp))
                         LinearBar(if (dbItems.isEmpty()) 0f else doneCount.toFloat() / dbItems.size, Modifier.fillMaxWidth())
@@ -248,6 +261,7 @@ fun ListScreen(listId: Long, onBack: () -> Unit) {
             history = item?.let { vm.priceHistory(it.name.trim().lowercase()) },
             favorite = item?.let { i -> products.firstOrNull { it.key == i.name.trim().lowercase() }?.favorite },
             onFavorite = { item?.let { vm.toggleFavorite(it.name.trim().lowercase()) } },
+            onCompare = item?.let { i -> { editingId = null; compareId = i.id } },
             onDismiss = { editingId = null; sheetName = null },
             onSaveNew = { vm.addItem(it); sheetName = null },
             onSaveEdit = { vm.updateItem(it); editingId = null },
@@ -259,7 +273,12 @@ fun ListScreen(listId: Long, onBack: () -> Unit) {
         )
     }
 
+    dbItems.firstOrNull { it.id == compareId }?.let { i ->
+        CompareSheet(storesVm, i.name.trim().lowercase(), i.name, i.quantity, i.unit) { compareId = null }
+    }
+
     when (dialog) {
+        "store" -> StorePickDialog(stores, list?.storeId, { dialog = null }) { id, newName -> dialog = null; vm.pickStore(id, newName) }
         "rename" -> TextPrompt("Rename list", "Name", list?.name.orEmpty(), "Save", { dialog = null }) { vm.rename(it); dialog = null }
         "template" -> TextPrompt("Save as template", "Template name", list?.name.orEmpty(), "Save", { dialog = null }) {
             vm.saveAsTemplate(it); dialog = null
@@ -268,6 +287,22 @@ fun ListScreen(listId: Long, onBack: () -> Unit) {
         "delete" -> PantriDialog("Delete this list?", { dialog = null }, "Delete", { dialog = null; vm.deleteList(onBack) }) {
             Text("${dbItems.size} items will be removed. This can't be undone.", style = MaterialTheme.typography.bodyMedium, color = p.sub)
         }
+    }
+}
+
+/** Choose the store for this list, or add one on the spot. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun StorePickDialog(stores: List<Store>, current: Long?, onDismiss: () -> Unit, onPick: (Long?, String) -> Unit) {
+    var picked by rememberSaveable { mutableStateOf(current) }
+    var name by rememberSaveable { mutableStateOf("") }
+    PantriDialog("Shop at which store?", onDismiss, "Save", { onPick(picked, name) }) {
+        Text("Items you check off save their price for this store, so you can compare stores later.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.pantri.sub)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice("No store", picked == null) { picked = null }
+            stores.forEach { s -> Choice(s.name, picked == s.id) { picked = s.id } }
+        }
+        PantriField(name, { name = it }, "Or add a new store", ime = ImeAction.Done)
     }
 }
 

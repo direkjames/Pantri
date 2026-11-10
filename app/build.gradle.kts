@@ -14,8 +14,8 @@ android {
         applicationId = "com.pantri.app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
     }
 
     // Release signing: put your own keystore details in keystore.properties (see README).
@@ -79,4 +79,5 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
 
     testImplementation(libs.junit)
+    testImplementation(libs.org.json) // the phone has org.json built in; plain JVM tests need it
 }

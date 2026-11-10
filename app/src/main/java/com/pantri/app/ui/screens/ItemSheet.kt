@@ -43,6 +43,9 @@ import com.pantri.app.ui.components.GradientButton
 import com.pantri.app.ui.components.PantriField
 import com.pantri.app.ui.components.PantriSheet
 import com.pantri.app.ui.components.SectionLabel
+import com.pantri.app.ui.components.SoftButton
+import com.pantri.app.ui.theme.Tone
+import androidx.compose.material.icons.rounded.Storefront
 import com.pantri.app.ui.components.icon
 import com.pantri.app.ui.theme.pantri
 import kotlinx.coroutines.flow.Flow
@@ -60,6 +63,7 @@ fun ItemSheet(
     history: Flow<List<PriceEntry>>?,
     favorite: Boolean?,
     onFavorite: () -> Unit,
+    onCompare: (() -> Unit)?,
     onDismiss: () -> Unit,
     onSaveNew: (ItemDraft) -> Unit,
     onSaveEdit: (Item) -> Unit,
@@ -122,6 +126,7 @@ fun ItemSheet(
                 style = MaterialTheme.typography.bodySmall, color = p.sub, modifier = Modifier.padding(top = 4.dp),
             )
         }
+        if (onCompare != null) SoftButton("Compare store prices", onCompare, Modifier.fillMaxWidth().padding(top = 8.dp), Tone.Orange, Icons.Rounded.Storefront)
         Spacer(Modifier.height(10.dp))
         SectionLabel("Unit")
         FlowRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
