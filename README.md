@@ -1,14 +1,25 @@
-# Pantri
+<div align="center">
 
-A lively grocery app that keeps your lists, recipes, meal plan and budget in one place.
+<h1>Pantri</h1>
 
-![Status](https://img.shields.io/badge/status-ready_to_use-2F7A5B) ![Version](https://img.shields.io/badge/version-1.0-F08A24) ![Platform](https://img.shields.io/badge/platform-Android_8%2B-3DDC84) ![Works offline](https://img.shields.io/badge/works-offline-E8503A)
+<p><b>A lively grocery app that keeps your lists, recipes, meal plan and budget in one place.</b></p>
 
-## About
+<p>
+<img alt="Status" src="https://img.shields.io/badge/status-ready_to_use-2F7A5B">
+<img alt="Version" src="https://img.shields.io/badge/version-1.0-F08A24">
+<img alt="Platform" src="https://img.shields.io/badge/platform-Android_8%2B-3DDC84">
+<img alt="Works offline" src="https://img.shields.io/badge/works-offline-E8503A">
+</p>
 
-Pantri is a private grocery app for one person. You write your shopping lists, type in the recipes you love, plan your meals for the week, and watch how much of your budget is left. Your budget follows your pay days: one budget for the 1st to the 15th, and one for the 16th to the end of the month.
+<img alt="Pantri on a phone: a grocery list, the home screen and the meal plan" src="docs/hero-1920x1080.png" width="100%">
 
-Everything stays on your phone. There is no account, no ads and no tracking.
+<h2>About</h2>
+
+<p>Pantri is a private grocery app for one person. You write your shopping lists, type in the recipes you love, plan your meals for the week, and watch how much of your budget is left. Your budget follows your pay days: one budget for the 1st to the 15th, and one for the 16th to the end of the month.</p>
+
+<p>Everything stays on your phone. There is no account, no ads and no tracking.</p>
+
+</div>
 
 ## Features
 
@@ -24,16 +35,7 @@ Everything stays on your phone. There is no account, no ads and no tracking.
 - **Recipe book.** Type in a recipe from anywhere, with its ingredients and steps. One tap sends the ingredients to a list, and you can untick the ones you already have.
 - **Meal plan.** Plan breakfast, lunch, dinner and snacks for each day. One tap adds the whole week's ingredients to a list, and matching items add up.
 - **Light and dark.** Pantri starts in light mode. Turn on dark mode in Settings.
-
-## Screenshots
-
-| Home | List | Recipe |
-| --- | --- | --- |
-| ![Home](docs/screenshots/home.png) | ![List](docs/screenshots/list.png) | ![Recipe](docs/screenshots/recipe.png) |
-
-| Meal plan | Budget |
-| --- | --- |
-| ![Meal plan](docs/screenshots/plan.png) | ![Budget](docs/screenshots/budget.png) |
+- **Safe with your typing.** Turning your phone or switching apps never loses what you were typing.
 
 ## Getting started
 
@@ -58,4 +60,4 @@ Ready to use.
 
 ## License
 
-Personal project. Fonts are used under the SIL Open Font License.
+All Rights Reserved. See [LICENSE](LICENSE).
