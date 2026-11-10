@@ -59,10 +59,11 @@ fun rankOffers(prices: List<StorePrice>, nameOf: (Long) -> String): List<Offer> 
 
 /** Is an automatic backup due? [weekday] 1 to 7 (Monday to Sunday) means weekly on that day; otherwise every [days] days; both 0 means off. */
 fun isBackupDue(today: LocalDate, last: LocalDate?, days: Int, weekday: Int): Boolean {
+    // A last backup dated in the future means the phone's clock was set back; back up again rather than wait for it.
     if (weekday in 1..7) {
         val latest = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.of(weekday)))
-        return last == null || last.isBefore(latest)
+        return last == null || last.isAfter(today) || last.isBefore(latest)
     }
     if (days <= 0) return false
-    return last == null || ChronoUnit.DAYS.between(last, today) >= days
+    return last == null || last.isAfter(today) || ChronoUnit.DAYS.between(last, today) >= days
 }

@@ -12,6 +12,7 @@ import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.ui.platform.LocalContext
 import com.pantri.app.PantriApp
+import com.pantri.app.ui.UiErrors
 import com.pantri.app.data.Settings
 import com.pantri.app.ui.components.Choice
 import com.pantri.app.ui.components.PantriDialog
@@ -72,8 +73,15 @@ fun SettingsScreen(onBack: () -> Unit) {
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
             // Keep access after the app closes; without this the folder is forgotten at the next start.
-            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-            vm.setFolder(uri.toString())
+            val rw = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            try {
+                context.contentResolver.takePersistableUriPermission(uri, rw)
+                // Let go of the old folder so permissions do not pile up (Android allows only a limited number).
+                s.backupFolder?.takeIf { it != uri.toString() }?.let { runCatching { context.contentResolver.releasePersistableUriPermission(it.toUri(), rw) } }
+                vm.setFolder(uri.toString())
+            } catch (e: SecurityException) {
+                UiErrors.events.tryEmit("Pantri can't keep access to that folder. Choose a different one.")
+            }
         }
     }
     val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) vm.pick(uri) }

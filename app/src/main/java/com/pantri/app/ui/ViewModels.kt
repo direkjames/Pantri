@@ -177,7 +177,11 @@ class StoresVm(private val repo: PantriRepository) : ViewModel() {
     val prices = repo.storePrices().hold(viewModelScope, emptyList<StorePrice>())
     val products = repo.products().hold(viewModelScope, emptyList<Product>())
 
-    fun addStore(name: String, onDone: (Long?) -> Unit = {}) = viewModelScope.launch(safeLaunch) { onDone(repo.addStore(name)) }
+    fun addStore(name: String, onDone: (Long?) -> Unit = {}) = viewModelScope.launch(safeLaunch) {
+        val id = repo.addStore(name)
+        if (id == null && name.isNotBlank()) UiErrors.events.tryEmit("You can have up to ${com.pantri.app.domain.Limits.MAX_STORES} stores.")
+        onDone(id)
+    }
     fun renameStore(store: Store, name: String) = viewModelScope.launch(safeLaunch) { repo.renameStore(store, name) }
     fun deleteStore(id: Long) = viewModelScope.launch(safeLaunch) { repo.deleteStore(id) }
     fun setPrice(key: String, storeId: Long, centavos: Long, quantity: Double, unit: String) =
@@ -202,7 +206,11 @@ class SettingsVm(private val repo: PantriRepository, private val backup: BackupS
     fun backupNow() = run { backup.backupNow().fold({ UiErrors.events.tryEmit("Backup saved.") }, { throw it }) }
     fun pick(uri: android.net.Uri) = run { pending.value = backup.read(uri) }
     fun cancelRestore() { pending.value = null }
-    fun confirmRestore() = run {
+    fun confirmRestore() {
+        if (!busy.value) restoreNow() // a second tap while the first is running must not restore twice
+    }
+
+    private fun restoreNow() = run {
         val d = pending.value ?: return@run
         backup.restore(d)
         pending.value = null

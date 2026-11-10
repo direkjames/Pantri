@@ -445,7 +445,8 @@ fun PantriDialog(
         containerColor = p.card,
         shape = RoundedCornerShape(26.dp),
         title = { Text(title, style = MaterialTheme.typography.titleLarge) },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp), content = content) },
+        // Scrolls so the buttons stay reachable at the largest font size.
+        text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp), content = content) },
         confirmButton = { TextButton(onConfirm) { Text(confirm, fontWeight = FontWeight.SemiBold, color = p.green) } },
         dismissButton = { TextButton(onDismiss) { Text(dismissText, color = p.sub) } },
     )

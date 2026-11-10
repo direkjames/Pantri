@@ -60,6 +60,12 @@ class StoresBackupTest {
         assertTrue(isBackupDue(today, LocalDate.of(2026, 11, 5), 0, 5))
     }
 
+    @Test fun clockSetBackStillBacksUp() {
+        val today = LocalDate.of(2026, 11, 11)
+        assertTrue(isBackupDue(today, today.plusDays(20), 3, 0))
+        assertTrue(isBackupDue(today, today.plusDays(20), 0, 1))
+    }
+
     @Test fun backupRoundTrip() {
         val data = BackupData(
             createdAt = 123, darkMode = true, haptics = false, defaultBudget = 600_000,

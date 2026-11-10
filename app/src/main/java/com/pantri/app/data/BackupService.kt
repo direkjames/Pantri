@@ -21,7 +21,8 @@ import java.time.format.DateTimeFormatter
 private const val PREFIX = "Pantri-backup-"
 private const val SAFETY_PREFIX = "Pantri-before-restore-"
 private const val KEEP = 7
-private const val MAX_BYTES = 25 * 1024 * 1024
+private const val KEEP_SAFETY = 3
+private const val MAX_BYTES = 10 * 1024 * 1024 // real backups are a few hundred KB; a bigger file is not ours and could run the phone out of memory
 
 fun BackupData.isEmpty() = lists.isEmpty() && recipes.isEmpty() && stores.isEmpty() && products.isEmpty() && meals.isEmpty()
 
@@ -84,7 +85,7 @@ class BackupService(private val context: Context, private val repo: PantriReposi
                     runCatching { DocumentsContract.deleteDocument(cr, doc) }
                     throw IOException("The saved file did not match")
                 }
-                if (prefix == PREFIX) prune(tree)
+                prune(tree, prefix, if (prefix == PREFIX) KEEP else KEEP_SAFETY)
                 if (record) repo.setBackupResult(System.currentTimeMillis(), null)
                 Result.success(name)
             } catch (e: CancellationException) {
@@ -97,18 +98,18 @@ class BackupService(private val context: Context, private val repo: PantriReposi
         }
     }
 
-    /** Keeps the newest [KEEP] automatic backups and deletes older ones. Failing to tidy up never fails a backup. */
-    private fun prune(tree: Uri) = runCatching {
+    /** Keeps the newest [keep] files that start with [prefix] and deletes older ones. Failing to tidy up never fails a backup. */
+    private fun prune(tree: Uri, prefix: String, keep: Int) = runCatching {
         val cr = context.contentResolver
         val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
         val mine = mutableListOf<Pair<String, String>>()
         cr.query(children, arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME), null, null, null)?.use { c ->
             while (c.moveToNext()) {
                 val n = c.getString(1) ?: continue
-                if (n.startsWith(PREFIX) && n.endsWith(".json")) mine += c.getString(0) to n
+                if (n.startsWith(prefix) && n.endsWith(".json")) mine += c.getString(0) to n
             }
         }
-        mine.sortedByDescending { it.second }.drop(KEEP).forEach {
+        mine.sortedByDescending { it.second }.drop(keep).forEach {
             runCatching { DocumentsContract.deleteDocument(cr, DocumentsContract.buildDocumentUriUsingTree(tree, it.first)) }
         }
     }

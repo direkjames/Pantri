@@ -177,22 +177,39 @@ class PantriRepository(
     /** Replaces everything with [d] in one transaction: if anything fails, nothing changes. Rows pointing at missing parents are dropped. */
     suspend fun restoreBackup(d: BackupData) {
         db.withTransaction {
-            val storeIds = d.stores.map { it.id }.toSet()
-            val lists = d.lists.distinctBy { it.id }.map { if (it.storeId != null && it.storeId !in storeIds) it.copy(storeId = null) else it }
+            // A backup file can be edited or damaged, so apply the same size limits as typing does.
+            fun qty(v: Double) = if (v.isFinite()) v.coerceIn(0.0001, Limits.MAX_QUANTITY) else 1.0
+            fun money(v: Long) = v.coerceIn(0, Limits.MAX_PRICE_CENTAVOS)
+            val stores = d.stores.distinctBy { it.id }.map { it.copy(name = it.name.clean(Limits.NAME)) }.take(Limits.MAX_STORES)
+            val storeIds = stores.map { it.id }.toSet()
+            val lists = d.lists.distinctBy { it.id }.map {
+                it.copy(name = it.name.clean(Limits.NAME), storeId = it.storeId?.takeIf { s -> s in storeIds })
+            }
             val listIds = lists.map { it.id }.toSet()
-            val recipes = d.recipes.distinctBy { it.id }
+            val recipes = d.recipes.distinctBy { it.id }.map { it.copy(title = it.title.clean(Limits.NAME), steps = it.steps.take(Limits.STEPS)) }
             val recipeIds = recipes.map { it.id }.toSet()
             dao.wipeLists(); dao.wipeRecipes(); dao.wipeMeals(); dao.wipeProducts(); dao.wipePrices(); dao.wipeBudgets(); dao.wipeStores()
-            dao.putStores(d.stores.distinctBy { it.id })
+            dao.putStores(stores)
             dao.putLists(lists)
-            dao.insertItems(d.items.distinctBy { it.id }.filter { it.listId in listIds })
+            dao.insertItems(
+                d.items.distinctBy { it.id }.filter { it.listId in listIds }.map {
+                    it.copy(name = it.name.clean(Limits.NAME), unit = it.unit.clean(Limits.UNIT), note = it.note.clean(Limits.NOTE), category = it.category.take(40), quantity = qty(it.quantity), priceCentavos = money(it.priceCentavos))
+                },
+            )
             dao.putRecipes(recipes)
-            dao.insertIngredients(d.ingredients.distinctBy { it.id }.filter { it.recipeId in recipeIds })
-            dao.putMeals(d.meals.distinctBy { it.id }.map { if (it.recipeId != null && it.recipeId !in recipeIds) it.copy(recipeId = null) else it })
-            dao.putProducts(d.products.distinctBy { it.key })
-            dao.putPrices(d.prices.distinctBy { it.id })
+            dao.insertIngredients(
+                d.ingredients.distinctBy { it.id }.filter { it.recipeId in recipeIds }.map {
+                    it.copy(name = it.name.clean(Limits.NAME), unit = it.unit.clean(Limits.UNIT), category = it.category.take(40), quantity = qty(it.quantity))
+                },
+            )
+            dao.putMeals(d.meals.distinctBy { it.id }.map { it.copy(title = it.title.clean(Limits.NAME), recipeId = it.recipeId?.takeIf { r -> r in recipeIds }) })
+            dao.putProducts(d.products.distinctBy { it.key }.map { it.copy(key = it.key.take(Limits.NAME), name = it.name.clean(Limits.NAME), unit = it.unit.clean(Limits.UNIT), category = it.category.take(40), unitPriceCentavos = money(it.unitPriceCentavos)) })
+            dao.putPrices(d.prices.distinctBy { it.id }.map { it.copy(unitPriceCentavos = money(it.unitPriceCentavos)) })
             dao.putBudgets(d.budgets.distinctBy { it.key })
-            dao.putStorePrices(d.storePrices.distinctBy { it.productKey to it.storeId }.filter { it.storeId in storeIds })
+            dao.putStorePrices(
+                d.storePrices.distinctBy { it.productKey to it.storeId }.filter { it.storeId in storeIds }
+                    .map { it.copy(productKey = it.productKey.take(Limits.NAME), unit = it.unit.clean(Limits.UNIT), quantity = qty(it.quantity), priceCentavos = money(it.priceCentavos)) },
+            )
         }
         d.darkMode?.let { settings.setDarkMode(it) }
         d.haptics?.let { settings.setHaptics(it) }
