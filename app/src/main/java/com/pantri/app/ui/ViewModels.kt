@@ -1,5 +1,6 @@
 package com.pantri.app.ui
 
+import kotlinx.coroutines.flow.catch
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
@@ -55,7 +56,7 @@ fun currentCutoff(): Flow<Cutoff> = flow {
 }.distinctUntilChanged()
 
 private fun <T> Flow<T>.hold(scope: kotlinx.coroutines.CoroutineScope, initial: T): StateFlow<T> =
-    stateIn(scope, SharingStarted.WhileSubscribed(5_000), initial)
+    catch { UiErrors.report(it) }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), initial)
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeVm(private val repo: PantriRepository) : ViewModel() {
@@ -66,15 +67,15 @@ class HomeVm(private val repo: PantriRepository) : ViewModel() {
     val streak = currentCutoff().flatMapLatest { c -> repo.observeHistory(c).map { streakOf(it, c.previous()) } }.hold(viewModelScope, 0)
 
     init {
-        viewModelScope.launch { currentCutoff().collect { repo.ensureBudget(it) } }
+        viewModelScope.launch(safeLaunch) { currentCutoff().collect { repo.ensureBudget(it) } }
     }
 
-    fun createList(name: String, templateId: Long?, onCreated: (Long) -> Unit) = viewModelScope.launch {
+    fun createList(name: String, templateId: Long?, onCreated: (Long) -> Unit) = viewModelScope.launch(safeLaunch) {
         onCreated(if (templateId == null) repo.createList(name) else repo.createFromTemplate(templateId, name))
     }
 
-    fun setCutoffBudget(centavos: Long) = viewModelScope.launch { repo.setCutoffBudget(cutoff.value, centavos) }
-    fun deleteTemplate(id: Long) = viewModelScope.launch { repo.deleteList(id) }
+    fun setCutoffBudget(centavos: Long) = viewModelScope.launch(safeLaunch) { repo.setCutoffBudget(cutoff.value, centavos) }
+    fun deleteTemplate(id: Long) = viewModelScope.launch(safeLaunch) { repo.deleteList(id) }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -86,7 +87,7 @@ class ListVm(private val repo: PantriRepository, val listId: Long) : ViewModel()
 
     fun priceHistory(key: String) = repo.priceHistory(key)
 
-    fun addQuick(name: String, product: Product?) = viewModelScope.launch {
+    fun addQuick(name: String, product: Product?) = viewModelScope.launch(safeLaunch) {
         val n = name.trim()
         if (n.isEmpty()) return@launch
         val unit = product?.unit ?: ""
@@ -94,18 +95,18 @@ class ListVm(private val repo: PantriRepository, val listId: Long) : ViewModel()
         repo.addItem(listId, ItemDraft(n, 1.0, unit, product?.category ?: com.pantri.app.data.Aisle.guess(n).name, "", price))
     }
 
-    fun addItem(draft: ItemDraft) = viewModelScope.launch { repo.addItem(listId, draft) }
-    fun updateItem(item: Item) = viewModelScope.launch { repo.updateItem(item) }
-    fun toggle(item: Item) = viewModelScope.launch { repo.setChecked(item, !item.checked) }
-    fun setChecked(item: Item, on: Boolean) = viewModelScope.launch { repo.setChecked(item, on) }
-    fun delete(item: Item) = viewModelScope.launch { repo.deleteItem(item) }
-    fun restore(item: Item) = viewModelScope.launch { repo.restoreItem(item) }
-    fun reorder(ordered: List<Item>) = viewModelScope.launch { repo.reorder(ordered) }
-    fun toggleFavorite(key: String) = viewModelScope.launch { repo.toggleFavorite(key) }
-    fun rename(name: String) = viewModelScope.launch { list.value?.let { repo.renameList(it, name) } }
-    fun saveAsTemplate(name: String) = viewModelScope.launch { repo.saveAsTemplate(listId, name) }
-    fun removeChecked() = viewModelScope.launch { repo.removeChecked(listId) }
-    fun deleteList(onDone: () -> Unit) = viewModelScope.launch { repo.deleteList(listId); onDone() }
+    fun addItem(draft: ItemDraft) = viewModelScope.launch(safeLaunch) { repo.addItem(listId, draft) }
+    fun updateItem(item: Item) = viewModelScope.launch(safeLaunch) { repo.updateItem(item) }
+    fun toggle(item: Item) = viewModelScope.launch(safeLaunch) { repo.setChecked(item, !item.checked) }
+    fun setChecked(item: Item, on: Boolean) = viewModelScope.launch(safeLaunch) { repo.setChecked(item, on) }
+    fun delete(item: Item) = viewModelScope.launch(safeLaunch) { repo.deleteItem(item) }
+    fun restore(item: Item) = viewModelScope.launch(safeLaunch) { repo.restoreItem(item) }
+    fun reorder(ordered: List<Item>) = viewModelScope.launch(safeLaunch) { repo.reorder(ordered) }
+    fun toggleFavorite(key: String) = viewModelScope.launch(safeLaunch) { repo.toggleFavorite(key) }
+    fun rename(name: String) = viewModelScope.launch(safeLaunch) { list.value?.let { repo.renameList(it, name) } }
+    fun saveAsTemplate(name: String) = viewModelScope.launch(safeLaunch) { repo.saveAsTemplate(listId, name) }
+    fun removeChecked() = viewModelScope.launch(safeLaunch) { repo.removeChecked(listId) }
+    fun deleteList(onDone: () -> Unit) = viewModelScope.launch(safeLaunch) { repo.deleteList(listId); onDone() }
 }
 
 class RecipesVm(private val repo: PantriRepository) : ViewModel() {
@@ -116,14 +117,14 @@ class RecipesVm(private val repo: PantriRepository) : ViewModel() {
     fun recipe(id: Long) = repo.recipe(id)
     fun ingredients(id: Long) = repo.ingredients(id)
 
-    fun save(recipe: Recipe, ingredients: List<RecipeIngredient>, onDone: (Long) -> Unit) = viewModelScope.launch {
+    fun save(recipe: Recipe, ingredients: List<RecipeIngredient>, onDone: (Long) -> Unit) = viewModelScope.launch(safeLaunch) {
         onDone(repo.saveRecipe(recipe, ingredients))
     }
 
-    fun delete(id: Long, onDone: () -> Unit) = viewModelScope.launch { repo.deleteRecipe(id); onDone() }
+    fun delete(id: Long, onDone: () -> Unit) = viewModelScope.launch(safeLaunch) { repo.deleteRecipe(id); onDone() }
 
     /** Adds to an existing list, or to a new list when [listId] is null. Reports the list id and how many lines changed. */
-    fun addToList(listId: Long?, newListName: String, incoming: List<Incoming>, onDone: (Long, Int) -> Unit) = viewModelScope.launch {
+    fun addToList(listId: Long?, newListName: String, incoming: List<Incoming>, onDone: (Long, Int) -> Unit) = viewModelScope.launch(safeLaunch) {
         val target = listId ?: repo.createList(newListName)
         onDone(target, repo.addToList(target, incoming))
     }
@@ -140,10 +141,10 @@ class PlanVm(private val repo: PantriRepository) : ViewModel() {
 
     fun shiftWeek(weeks: Long) = _weekStart.update { it.plusWeeks(weeks) }
     fun thisWeek() { _weekStart.value = PantriRepository.today().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)) }
-    fun addMeal(day: LocalDate, slot: Int, recipeId: Long?, title: String) = viewModelScope.launch { repo.addMeal(day, slot, recipeId, title) }
-    fun deleteMeal(id: Long) = viewModelScope.launch { repo.deleteMeal(id) }
+    fun addMeal(day: LocalDate, slot: Int, recipeId: Long?, title: String) = viewModelScope.launch(safeLaunch) { repo.addMeal(day, slot, recipeId, title) }
+    fun deleteMeal(id: Long) = viewModelScope.launch(safeLaunch) { repo.deleteMeal(id) }
 
-    fun addWeekToList(listId: Long?, newListName: String, onDone: (Long, Int) -> Unit) = viewModelScope.launch {
+    fun addWeekToList(listId: Long?, newListName: String, onDone: (Long, Int) -> Unit) = viewModelScope.launch(safeLaunch) {
         val start = _weekStart.value
         val incoming = repo.ingredientsForPlan(start, start.plusDays(6))
         val target = listId ?: repo.createList(newListName)
@@ -157,13 +158,13 @@ class BudgetVm(private val repo: PantriRepository) : ViewModel() {
     val summary: StateFlow<CutoffSummary?> = currentCutoff().flatMapLatest { repo.observeCutoff(it) }.hold(viewModelScope, null)
     val history: StateFlow<List<HistoryRow>> = currentCutoff().flatMapLatest { repo.observeHistory(it) }.hold(viewModelScope, emptyList())
     val purchases = currentCutoff().flatMapLatest { repo.observePurchases(it) }.hold(viewModelScope, emptyList<Item>())
-    fun setCutoffBudget(centavos: Long) = viewModelScope.launch { repo.setCutoffBudget(cutoff.value, centavos) }
+    fun setCutoffBudget(centavos: Long) = viewModelScope.launch(safeLaunch) { repo.setCutoffBudget(cutoff.value, centavos) }
 }
 
 class SettingsVm(private val repo: PantriRepository) : ViewModel() {
     val settings = repo.settingsFlow.hold(viewModelScope, Settings())
 
-    fun setDark(on: Boolean) = viewModelScope.launch { repo.setDarkMode(on) }
-    fun setHaptics(on: Boolean) = viewModelScope.launch { repo.setHaptics(on) }
-    fun setDefaultBudget(centavos: Long) = viewModelScope.launch { repo.setDefaultBudget(centavos, Cutoff.of(PantriRepository.today())) }
+    fun setDark(on: Boolean) = viewModelScope.launch(safeLaunch) { repo.setDarkMode(on) }
+    fun setHaptics(on: Boolean) = viewModelScope.launch(safeLaunch) { repo.setHaptics(on) }
+    fun setDefaultBudget(centavos: Long) = viewModelScope.launch(safeLaunch) { repo.setDefaultBudget(centavos, Cutoff.of(PantriRepository.today())) }
 }

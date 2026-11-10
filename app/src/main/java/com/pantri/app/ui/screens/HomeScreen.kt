@@ -36,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,8 +77,8 @@ fun HomeScreen(onOpenList: (Long) -> Unit, onNavigate: (String) -> Unit, onSetti
     val templates by vm.templates.collectAsStateWithLifecycle()
     val summary by vm.summary.collectAsStateWithLifecycle()
     val streak by vm.streak.collectAsStateWithLifecycle()
-    var newList by remember { mutableStateOf(false) }
-    var editBudget by remember { mutableStateOf(false) }
+    var newList by rememberSaveable { mutableStateOf(false) }
+    var editBudget by rememberSaveable { mutableStateOf(false) }
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
@@ -139,7 +140,7 @@ fun HomeScreen(onOpenList: (Long) -> Unit, onNavigate: (String) -> Unit, onSetti
 @Composable
 fun BudgetHero(s: CutoffSummary, onClick: () -> Unit) {
     val over = s.left < 0
-    HeroCard(if (over) MaterialTheme.pantri.heroSunset else MaterialTheme.pantri.heroGreen, Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick)) {
+    HeroCard(if (over) MaterialTheme.pantri.heroSunset else MaterialTheme.pantri.heroGreen, Modifier.fillMaxWidth().clickable(onClickLabel = "Edit budget", role = Role.Button, onClick = onClick)) {
         Column(Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 ProgressRing(s.fraction, Modifier.size(96.dp), color = if (over) Color.White else Color(0xFFF6C62F)) {
@@ -180,7 +181,7 @@ private fun QuickTile(label: String, icon: androidx.compose.ui.graphics.vector.I
 
 @Composable
 private fun ListRow(s: ListSummary, tone: Tone, onClick: () -> Unit) {
-    PantriCard(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick)) {
+    PantriCard(Modifier.fillMaxWidth().clickable(onClickLabel = "Edit budget", role = Role.Button, onClick = onClick)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconTile(Icons.Rounded.ShoppingCart, tone, size = 44.dp)
             Spacer(Modifier.size(12.dp))
@@ -199,9 +200,9 @@ private fun ListRow(s: ListSummary, tone: Tone, onClick: () -> Unit) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun NewListDialog(templates: List<ListSummary>, onDismiss: () -> Unit, onCreate: (String, Long?) -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var template by remember { mutableStateOf<Long?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var name by rememberSaveable { mutableStateOf("") }
+    var template by rememberSaveable { mutableStateOf<Long?>(null) }
+    var error by rememberSaveable { mutableStateOf<String?>(null) }
     fun go() {
         val n = name.ifBlank { templates.firstOrNull { it.list.id == template }?.list?.name.orEmpty() }
         if (n.isBlank()) error = "Give your list a name" else onCreate(n, template)

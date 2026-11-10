@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -40,6 +41,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -130,10 +135,10 @@ fun RecipeDetailScreen(id: Long, onBack: () -> Unit, onEdit: () -> Unit, onOpenL
     val snack = LocalSnack.current
     val scope = rememberCoroutineScope()
     val p = MaterialTheme.pantri
-    var skipped by remember { mutableStateOf(setOf<Long>()) }
-    var pick by remember { mutableStateOf(false) }
-    var menu by remember { mutableStateOf(false) }
-    var confirmDelete by remember { mutableStateOf(false) }
+    var skipped by rememberSaveable { mutableStateOf(setOf<Long>()) }
+    var pick by rememberSaveable { mutableStateOf(false) }
+    var menu by rememberSaveable { mutableStateOf(false) }
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
     val r = recipe ?: return
     val chosen = ingredients.filter { it.id !in skipped }
 
@@ -203,21 +208,27 @@ fun RecipeDetailScreen(id: Long, onBack: () -> Unit, onEdit: () -> Unit, onOpenL
 
 private class IngRow(var name: String, var qty: String, var unit: String, val key: Long)
 
+/** Keeps the half-typed ingredient rows through rotation and the app being killed. */
+private val IngRowsSaver = listSaver<SnapshotStateList<IngRow>, List<String>>(
+    save = { l -> l.map { listOf(it.key.toString(), it.name, it.qty, it.unit) } },
+    restore = { saved -> mutableStateListOf<IngRow>().apply { saved.forEach { add(IngRow(it[1], it[2], it[3], it[0].toLong())) } } },
+)
+
 @Composable
 fun RecipeEditorScreen(id: Long, onBack: () -> Unit, onSaved: (Long) -> Unit) {
     val vm = pantriVm { RecipesVm(it) }
     val p = MaterialTheme.pantri
     val loaded by vm.recipe(id).collectAsStateWithLifecycle(null)
     val loadedIngredients by vm.ingredients(id).collectAsStateWithLifecycle(null)
-    var title by remember { mutableStateOf("") }
-    var servings by remember { mutableStateOf("4") }
-    var minutes by remember { mutableStateOf("") }
-    var steps by remember { mutableStateOf("") }
-    val rows = remember { mutableStateListOf<IngRow>().apply { if (id == 0L) add(IngRow("", "1", "", 0)) } }
-    var counter by remember { mutableStateOf(1L) }
-    var filled by remember { mutableStateOf(id == 0L) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var titleError by remember { mutableStateOf<String?>(null) }
+    var title by rememberSaveable { mutableStateOf("") }
+    var servings by rememberSaveable { mutableStateOf("4") }
+    var minutes by rememberSaveable { mutableStateOf("") }
+    var steps by rememberSaveable { mutableStateOf("") }
+    val rows = rememberSaveable(saver = IngRowsSaver) { mutableStateListOf<IngRow>().apply { if (id == 0L) add(IngRow("", "1", "", 0)) } }
+    var counter by rememberSaveable { mutableLongStateOf(1L) }
+    var filled by rememberSaveable { mutableStateOf(id == 0L) }
+    var error by rememberSaveable { mutableStateOf<String?>(null) }
+    var titleError by rememberSaveable { mutableStateOf<String?>(null) }
 
     // Existing recipes: copy the saved values into the form once.
     LaunchedEffect(loaded, loadedIngredients) {
@@ -259,14 +270,14 @@ fun RecipeEditorScreen(id: Long, onBack: () -> Unit, onSaved: (Long) -> Unit) {
                     var u by remember { mutableStateOf(row.unit) }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Top) {
                         PantriField(n, { n = it; row.name = it }, "Ingredient", Modifier.weight(1f))
-                        PantriField(q, { q = it; row.qty = it }, "Qty", Modifier.size(width = 76.dp, height = 64.dp), KeyboardType.Decimal)
-                        PantriField(u, { u = it; row.unit = it }, "Unit", Modifier.size(width = 80.dp, height = 64.dp))
+                        PantriField(q, { q = it; row.qty = it }, "Qty", Modifier.width(92.dp), KeyboardType.Decimal)
+                        PantriField(u, { u = it; row.unit = it }, "Unit", Modifier.width(92.dp), maxLength = com.pantri.app.domain.Limits.UNIT)
                         IconButton({ rows.removeAt(i) }, Modifier.padding(top = 4.dp)) { Icon(Icons.Rounded.Close, "Remove ingredient", tint = p.muted) }
                     }
                 }
             }
             SoftButton("Add ingredient", { rows.add(IngRow("", "1", "", counter++)) }, icon = Icons.Rounded.Add)
-            PantriField(steps, { steps = it }, "Steps (optional)", Modifier.fillMaxWidth().padding(top = 6.dp), singleLine = false, minLines = 4, ime = ImeAction.Default)
+            PantriField(steps, { steps = it }, "Steps (optional)", Modifier.fillMaxWidth().padding(top = 6.dp), singleLine = false, minLines = 4, ime = ImeAction.Default, maxLength = com.pantri.app.domain.Limits.STEPS)
             error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             Spacer(Modifier.height(8.dp))
         }

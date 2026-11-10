@@ -92,7 +92,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.selection.selectable
 import com.pantri.app.data.Aisle
+import com.pantri.app.domain.Limits
 import com.pantri.app.ui.theme.Tone
 import com.pantri.app.ui.theme.pantri
 
@@ -223,7 +225,7 @@ fun GradientButton(
 fun SoftButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, tone: Tone = Tone.Green, icon: ImageVector? = null) {
     val (bg, fg) = MaterialTheme.pantri.tint(tone)
     Row(
-        modifier.clip(RoundedCornerShape(16.dp)).background(bg).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp),
+        modifier.clip(RoundedCornerShape(16.dp)).background(bg).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -270,22 +272,29 @@ fun PantriCheck(checked: Boolean, onChange: (Boolean) -> Unit, modifier: Modifie
     val haptic = rememberHaptic()
     val bg by animateColorAsState(if (checked) p.green else Color.Transparent, tween(180), label = "check")
     val scale by animateFloatAsState(if (checked) 1f else 0.96f, spring(Spring.DampingRatioMediumBouncy), label = "checkScale")
+    // The box you see is 26 dp, but the tap area is 48 dp so it is easy to hit with a thumb.
     Box(
         modifier
-            .size(26.dp)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clip(RoundedCornerShape(9.dp))
-            .background(bg)
-            .border(2.dp, if (checked) p.green else p.muted.copy(alpha = 0.5f), RoundedCornerShape(9.dp))
-            .clickable(role = Role.Checkbox) {
+            .size(48.dp)
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Checkbox) {
                 haptic(if (checked) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
                 onChange(!checked)
             }
             .semantics { contentDescription = if (checked) "Done, $label" else "Not done, $label" },
         contentAlignment = Alignment.Center,
     ) {
-        AnimatedVisibility(checked, enter = scaleIn(spring(Spring.DampingRatioMediumBouncy)), exit = scaleOut()) {
-            Icon(Icons.Rounded.Check, null, Modifier.size(18.dp), tint = Color.White)
+        Box(
+            Modifier
+                .size(26.dp)
+                .graphicsLayer { scaleX = scale; scaleY = scale }
+                .clip(RoundedCornerShape(9.dp))
+                .background(bg)
+                .border(2.dp, if (checked) p.green else p.muted.copy(alpha = 0.5f), RoundedCornerShape(9.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            AnimatedVisibility(checked, enter = scaleIn(spring(Spring.DampingRatioMediumBouncy)), exit = scaleOut()) {
+                Icon(Icons.Rounded.Check, null, Modifier.size(18.dp), tint = Color.White)
+            }
         }
     }
 }
@@ -359,7 +368,7 @@ fun FloatingNav(current: String?, onSelect: (String) -> Unit, modifier: Modifier
             val bg by animateColorAsState(if (sel) p.tint(Tone.Green).first else Color.Transparent, tween(200), label = "navBg")
             val fg by animateColorAsState(if (sel) p.tint(Tone.Green).second else p.muted, tween(200), label = "navFg")
             Column(
-                Modifier.weight(1f).clip(RoundedCornerShape(18.dp)).background(bg).clickable(role = Role.Tab) { onSelect(t.route) }.padding(vertical = 8.dp),
+                Modifier.weight(1f).clip(RoundedCornerShape(18.dp)).background(bg).selectable(selected = sel, role = Role.Tab) { onSelect(t.route) }.padding(vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Icon(t.icon, null, Modifier.size(24.dp), tint = fg)
@@ -382,11 +391,12 @@ fun PantriField(
     minLines: Int = 1,
     ime: ImeAction = ImeAction.Next,
     onDone: (() -> Unit)? = null,
+    maxLength: Int = Limits.NAME,
 ) {
     val p = MaterialTheme.pantri
     OutlinedTextField(
         value = value,
-        onValueChange = onValueChange,
+        onValueChange = { onValueChange(it.take(maxLength)) },
         modifier = modifier,
         label = { Text(label) },
         prefix = prefix?.let { { Text(it) } },

@@ -22,6 +22,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,16 +66,16 @@ fun ItemSheet(
     onDelete: (Item) -> Unit,
 ) {
     val p = MaterialTheme.pantri
-    var name by remember { mutableStateOf(existing?.name ?: prefillName) }
-    var quantity by remember { mutableStateOf(existing?.let { qty(it.quantity) } ?: "1") }
-    var unit by remember { mutableStateOf(existing?.unit ?: "") }
-    var price by remember { mutableStateOf(existing?.priceCentavos?.takeIf { it > 0 }?.let { (it / 100.0).toString().removeSuffix(".0") } ?: "") }
-    var aisle by remember { mutableStateOf(existing?.let { Aisle.from(it.category) } ?: Aisle.guess(prefillName)) }
-    var note by remember { mutableStateOf(existing?.note ?: "") }
-    var touched by remember { mutableStateOf(existing != null) }
-    var nameError by remember { mutableStateOf<String?>(null) }
-    var qtyError by remember { mutableStateOf<String?>(null) }
-    var priceError by remember { mutableStateOf<String?>(null) }
+    var name by rememberSaveable { mutableStateOf(existing?.name ?: prefillName) }
+    var quantity by rememberSaveable { mutableStateOf(existing?.let { qty(it.quantity) } ?: "1") }
+    var unit by rememberSaveable { mutableStateOf(existing?.unit ?: "") }
+    var price by rememberSaveable { mutableStateOf(existing?.priceCentavos?.takeIf { it > 0 }?.let { (it / 100.0).toString().removeSuffix(".0") } ?: "") }
+    var aisle by rememberSaveable { mutableStateOf(existing?.let { Aisle.from(it.category) } ?: Aisle.guess(prefillName)) }
+    var note by rememberSaveable { mutableStateOf(existing?.note ?: "") }
+    var touched by rememberSaveable { mutableStateOf(existing != null) }
+    var nameError by rememberSaveable { mutableStateOf<String?>(null) }
+    var qtyError by rememberSaveable { mutableStateOf<String?>(null) }
+    var priceError by rememberSaveable { mutableStateOf<String?>(null) }
     val recent by (history ?: flowOf(emptyList())).collectAsStateWithLifecycle(emptyList())
 
     // New items: fill the aisle, unit and price from what you bought before, until you touch those fields yourself.
@@ -132,7 +133,7 @@ fun ItemSheet(
             Aisle.entries.forEach { a -> Choice(a.label, aisle == a) { aisle = a; touched = true } }
         }
         Spacer(Modifier.height(12.dp))
-        PantriField(note, { note = it }, "Note (optional)", Modifier.fillMaxWidth(), ime = androidx.compose.ui.text.input.ImeAction.Done, onDone = ::save)
+        PantriField(note, { note = it }, "Note (optional)", Modifier.fillMaxWidth(), ime = androidx.compose.ui.text.input.ImeAction.Done, onDone = ::save, maxLength = com.pantri.app.domain.Limits.NOTE)
         Spacer(Modifier.height(16.dp))
         GradientButton(if (existing == null) "Add to list" else "Save", ::save, Modifier.fillMaxWidth())
     }

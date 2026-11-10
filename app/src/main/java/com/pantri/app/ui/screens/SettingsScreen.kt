@@ -26,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,7 +52,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     val vm = pantriVm { SettingsVm(it) }
     val s by vm.settings.collectAsStateWithLifecycle()
     val p = MaterialTheme.pantri
-    var edit by remember { mutableStateOf(false) }
+    var edit by rememberSaveable { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
         TopBar("Settings", onBack = onBack)

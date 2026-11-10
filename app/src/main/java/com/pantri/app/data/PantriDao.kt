@@ -74,6 +74,9 @@ interface PantriDao {
 
     @Insert suspend fun insertPrice(entry: PriceEntry)
 
+    @Query("SELECT * FROM prices WHERE productKey = :key ORDER BY at DESC LIMIT 1")
+    suspend fun lastPrice(key: String): PriceEntry?
+
     @Query("SELECT * FROM prices WHERE productKey = :key ORDER BY at DESC LIMIT 8")
     fun observePrices(key: String): Flow<List<PriceEntry>>
 

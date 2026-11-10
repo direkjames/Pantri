@@ -1,7 +1,9 @@
 package com.pantri.app.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -14,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,8 +30,8 @@ import com.pantri.app.ui.theme.pantri
 /** Edit a peso amount. Empty, zero or invalid input shows an error instead of saving. */
 @Composable
 fun BudgetDialog(title: String, note: String, initialCentavos: Long, onSave: (Long) -> Unit, onDismiss: () -> Unit) {
-    var text by remember { mutableStateOf(if (initialCentavos % 100 == 0L) (initialCentavos / 100).toString() else "%.2f".format(initialCentavos / 100.0)) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var text by rememberSaveable { mutableStateOf(if (initialCentavos % 100 == 0L) (initialCentavos / 100).toString() else "%.2f".format(initialCentavos / 100.0)) }
+    var error by rememberSaveable { mutableStateOf<String?>(null) }
     fun save() {
         val v = parsePesos(text)
         if (v == null || v <= 0) error = "Enter an amount above zero" else onSave(v)
@@ -43,9 +46,9 @@ fun BudgetDialog(title: String, note: String, initialCentavos: Long, onSave: (Lo
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ListPickerDialog(title: String, lists: List<ListSummary>, defaultNewName: String, confirm: String, onPick: (Long?, String) -> Unit, onDismiss: () -> Unit) {
-    var picked by remember { mutableStateOf(lists.firstOrNull()?.list?.id) }
-    var name by remember { mutableStateOf(defaultNewName) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var picked by rememberSaveable { mutableStateOf(lists.firstOrNull()?.list?.id) }
+    var name by rememberSaveable { mutableStateOf(defaultNewName) }
+    var error by rememberSaveable { mutableStateOf<String?>(null) }
     fun go() {
         if (picked == null && name.isBlank()) error = "Give the new list a name" else onPick(picked, name)
     }
@@ -63,7 +66,7 @@ fun Choice(text: String, selected: Boolean, modifier: Modifier = Modifier, onCli
     val p = MaterialTheme.pantri
     val bg = if (selected) p.green else p.tint(com.pantri.app.ui.theme.Tone.Green).first
     val fg = if (selected) Color.White else p.tint(com.pantri.app.ui.theme.Tone.Green).second
-    Row(modifier.clip(RoundedCornerShape(14.dp)).background(bg).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp)) {
+    Row(modifier.minimumInteractiveComponentSize().clip(RoundedCornerShape(14.dp)).background(bg).selectable(selected = selected, role = Role.RadioButton, onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp)) {
         Text(text, style = MaterialTheme.typography.labelLarge, color = fg, maxLines = 1)
     }
 }

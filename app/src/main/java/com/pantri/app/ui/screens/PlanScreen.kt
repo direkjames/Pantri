@@ -2,6 +2,8 @@ package com.pantri.app.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,6 +40,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -85,9 +88,9 @@ fun PlanScreen(onNewRecipe: () -> Unit, onOpenList: (Long) -> Unit) {
     val scope = rememberCoroutineScope()
     val p = MaterialTheme.pantri
     val today = PantriRepository.today()
-    var selected by remember { mutableStateOf(today) }
+    var selected by rememberSaveable { mutableStateOf(today) }
     var addSlot by remember { mutableIntStateOf(-1) }
-    var pickList by remember { mutableStateOf(false) }
+    var pickList by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(weekStart) { if (selected < weekStart || selected > weekStart.plusDays(6)) selected = if (today in weekStart..weekStart.plusDays(6)) today else weekStart }
 
     val plannedRecipes = meals.count { it.recipeId != null }
@@ -112,7 +115,7 @@ fun PlanScreen(onNewRecipe: () -> Unit, onOpenList: (Long) -> Unit) {
                     val has = meals.any { it.epochDay == d.toEpochDay() }
                     Column(
                         Modifier.weight(1f).clip(RoundedCornerShape(16.dp))
-                            .background(if (sel) p.green else p.card).clickable { selected = d }.padding(vertical = 10.dp),
+                            .background(if (sel) p.green else p.card).selectable(selected = sel, role = Role.Tab) { selected = d }.padding(vertical = 10.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(d.dayOfWeek.getDisplayName(TextStyle.NARROW, Locale.ENGLISH), style = MaterialTheme.typography.labelSmall, color = if (sel) Color.White.copy(alpha = 0.85f) else p.sub)
@@ -181,8 +184,8 @@ fun PlanScreen(onNewRecipe: () -> Unit, onOpenList: (Long) -> Unit) {
 @Composable
 private fun MealSheet(day: LocalDate, slot: String, recipes: List<Recipe>, onDismiss: () -> Unit, onAdd: (Long?, String) -> Unit) {
     val p = MaterialTheme.pantri
-    var custom by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
+    var custom by rememberSaveable { mutableStateOf("") }
+    var error by rememberSaveable { mutableStateOf<String?>(null) }
     fun addCustom() { if (custom.isBlank()) error = "Type what you're having" else onAdd(null, custom) }
     PantriSheet(onDismiss) {
         Text("$slot on ${day.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH)}", style = MaterialTheme.typography.headlineSmall)

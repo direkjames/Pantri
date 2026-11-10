@@ -3,6 +3,7 @@ package com.pantri.app.data
 import androidx.room.withTransaction
 import com.pantri.app.domain.Cutoff
 import com.pantri.app.domain.Incoming
+import com.pantri.app.domain.Limits
 import com.pantri.app.domain.mergeIngredients
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -47,17 +48,17 @@ class PantriRepository(
     fun list(id: Long) = dao.observeList(id)
     fun items(listId: Long) = dao.observeItems(listId)
 
-    suspend fun createList(name: String): Long = dao.insertList(GroceryList(name = name.trim().ifBlank { "New list" }, createdAt = now()))
+    suspend fun createList(name: String): Long = dao.insertList(GroceryList(name = name.clean(Limits.NAME).ifBlank { "New list" }, createdAt = now()))
 
     suspend fun renameList(list: GroceryList, name: String) {
-        if (name.isNotBlank()) dao.updateList(list.copy(name = name.trim()))
+        if (name.isNotBlank()) dao.updateList(list.copy(name = name.clean(Limits.NAME)))
     }
 
     suspend fun deleteList(id: Long) = dao.deleteList(id)
 
     /** Copies [sourceId] into a new list or template; items come over unchecked and unpriced-history free. */
     private suspend fun copyList(sourceId: Long, name: String, template: Boolean): Long = db.withTransaction {
-        val id = dao.insertList(GroceryList(name = name.trim().ifBlank { "New list" }, isTemplate = template, createdAt = now()))
+        val id = dao.insertList(GroceryList(name = name.clean(Limits.NAME).ifBlank { "New list" }, isTemplate = template, createdAt = now()))
         dao.insertItems(dao.getItems(sourceId).map { it.copy(id = 0, listId = id, checked = false, checkedAt = null, createdAt = now()) })
         id
     }
@@ -71,27 +72,34 @@ class PantriRepository(
 
     // Items
     suspend fun addItem(listId: Long, draft: ItemDraft): Long = db.withTransaction {
-        val name = draft.name.trim()
+        val name = draft.name.clean(Limits.NAME)
+        val unit = draft.unit.clean(Limits.UNIT)
+        val qty = draft.quantity.coerceIn(0.0001, Limits.MAX_QUANTITY)
+        val price = draft.priceCentavos.coerceIn(0, Limits.MAX_PRICE_CENTAVOS)
         val id = dao.insertItem(
             Item(
-                listId = listId, name = name, quantity = draft.quantity, unit = draft.unit.trim(), category = draft.category,
-                note = draft.note.trim(), priceCentavos = draft.priceCentavos, sortOrder = dao.maxSortOrder(listId) + 1, createdAt = now(),
+                listId = listId, name = name, quantity = qty, unit = unit, category = draft.category,
+                note = draft.note.clean(Limits.NOTE), priceCentavos = price, sortOrder = dao.maxSortOrder(listId) + 1, createdAt = now(),
             ),
         )
-        rememberProduct(name, draft.category, draft.unit.trim(), draft.quantity, draft.priceCentavos)
+        rememberProduct(name, draft.category, unit, qty, price)
         id
     }
 
     suspend fun updateItem(item: Item) = db.withTransaction {
-        dao.updateItem(item.copy(name = item.name.trim(), unit = item.unit.trim(), note = item.note.trim()))
-        rememberProduct(item.name.trim(), item.category, item.unit.trim(), item.quantity, item.priceCentavos)
+        val clean = item.copy(
+            name = item.name.clean(Limits.NAME), unit = item.unit.clean(Limits.UNIT), note = item.note.clean(Limits.NOTE),
+            quantity = item.quantity.coerceIn(0.0001, Limits.MAX_QUANTITY), priceCentavos = item.priceCentavos.coerceIn(0, Limits.MAX_PRICE_CENTAVOS),
+        )
+        dao.updateItem(clean)
+        rememberProduct(clean.name, clean.category, clean.unit, clean.quantity, clean.priceCentavos)
     }
 
     suspend fun deleteItem(item: Item) = dao.deleteItem(item)
 
-    /** Puts a deleted item back (undo). */
+    /** Puts a deleted item back (undo). Does nothing if its list was deleted in the meantime. */
     suspend fun restoreItem(item: Item) {
-        dao.insertItem(item)
+        if (dao.getList(item.listId) != null) dao.insertItem(item)
     }
 
     suspend fun setChecked(item: Item, checked: Boolean) = db.withTransaction {
@@ -105,7 +113,11 @@ class PantriRepository(
                 (p ?: Product(key, item.name.trim(), item.category, item.unit, unitPrice, 0, false, t))
                     .copy(timesBought = (p?.timesBought ?: 0) + 1, lastUsedAt = t, unitPriceCentavos = if (unitPrice > 0) unitPrice else (p?.unitPriceCentavos ?: 0)),
             )
-            if (unitPrice > 0) dao.insertPrice(PriceEntry(productKey = key, unitPriceCentavos = unitPrice, at = t))
+            // Checking, unchecking and checking again must not fill the price history with the same price.
+            val last = dao.lastPrice(key)
+            if (unitPrice > 0 && !(last != null && last.unitPriceCentavos == unitPrice && t - last.at < DAY_MS)) {
+                dao.insertPrice(PriceEntry(productKey = key, unitPriceCentavos = unitPrice, at = t))
+            }
         }
     }
 
@@ -139,10 +151,13 @@ class PantriRepository(
     fun ingredientCounts() = dao.observeIngredientCounts().map { rows -> rows.associate { it.recipeId to it.n } }
 
     suspend fun saveRecipe(recipe: Recipe, ingredients: List<RecipeIngredient>): Long = db.withTransaction {
-        val id = if (recipe.id == 0L) dao.insertRecipe(recipe.copy(createdAt = now())) else recipe.also { dao.updateRecipe(it) }.id
+        val safe = recipe.copy(title = recipe.title.clean(Limits.NAME), steps = recipe.steps.trim().take(Limits.STEPS))
+        val id = if (safe.id == 0L) dao.insertRecipe(safe.copy(createdAt = now())) else safe.also { dao.updateRecipe(it) }.id
         dao.clearIngredients(id)
         dao.insertIngredients(
-            ingredients.filter { it.name.isNotBlank() }.mapIndexed { i, ing -> ing.copy(id = 0, recipeId = id, name = ing.name.trim(), sortOrder = i) },
+            ingredients.filter { it.name.isNotBlank() }.take(200).mapIndexed { i, ing ->
+                ing.copy(id = 0, recipeId = id, name = ing.name.clean(Limits.NAME), unit = ing.unit.clean(Limits.UNIT), quantity = ing.quantity.coerceIn(0.0001, Limits.MAX_QUANTITY), sortOrder = i)
+            },
         )
         id
     }
@@ -173,7 +188,9 @@ class PantriRepository(
     fun meals(from: LocalDate, to: LocalDate) = dao.observeMeals(from.toEpochDay(), to.toEpochDay())
 
     suspend fun addMeal(day: LocalDate, slot: Int, recipeId: Long?, title: String) {
-        if (title.isNotBlank()) dao.insertMeal(Meal(epochDay = day.toEpochDay(), slot = slot, recipeId = recipeId, title = title.trim()))
+        // Plan the recipe only if it still exists; a deleted one would break the link.
+        val safeRecipe = recipeId?.takeIf { dao.getRecipe(it) != null }
+        if (title.isNotBlank() && slot in 0..3) dao.insertMeal(Meal(epochDay = day.toEpochDay(), slot = slot, recipeId = safeRecipe, title = title.clean(Limits.NAME)))
     }
 
     suspend fun deleteMeal(id: Long) = dao.deleteMeal(id)
@@ -224,9 +241,12 @@ class PantriRepository(
     }
 
     companion object {
+        private const val DAY_MS = 24L * 60 * 60 * 1000
         fun today(): LocalDate = LocalDate.now(ZoneId.systemDefault())
     }
 }
+
+private fun String.clean(max: Int) = trim().take(max)
 
 /** Finished cutoffs in a row, newest first, where you spent something and stayed within budget. */
 fun streakOf(history: List<HistoryRow>, expectedNewest: Cutoff): Int {

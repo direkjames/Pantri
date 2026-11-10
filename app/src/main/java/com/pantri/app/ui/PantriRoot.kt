@@ -17,6 +17,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -53,6 +54,7 @@ fun PantriRoot(haptics: Boolean) {
     val snack = remember { SnackbarHostState() }
     val route = nav.currentBackStackEntryAsState().value?.destination?.route
     val showNav = route in tabRoutes
+    LaunchedEffect(Unit) { UiErrors.events.collect { snack.showSnackbar(it) } }
 
     CompositionLocalProvider(LocalHaptics provides haptics, LocalSnack provides snack) {
         // Phones fill the screen; tablets and landscape get a centred column so nothing stretches.

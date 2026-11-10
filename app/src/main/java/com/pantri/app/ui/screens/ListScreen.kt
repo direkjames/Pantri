@@ -40,6 +40,8 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -53,6 +55,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -112,11 +115,11 @@ fun ListScreen(listId: Long, onBack: () -> Unit) {
     val haptic = rememberHaptic()
     val p = MaterialTheme.pantri
 
-    var editing by remember { mutableStateOf<Item?>(null) }
-    var sheetName by remember { mutableStateOf<String?>(null) }
-    var menu by remember { mutableStateOf(false) }
-    var dialog by remember { mutableStateOf<String?>(null) }
-    var draft by remember { mutableStateOf("") }
+    var editingId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var sheetName by rememberSaveable { mutableStateOf<String?>(null) }
+    var menu by rememberSaveable { mutableStateOf(false) }
+    var dialog by rememberSaveable { mutableStateOf<String?>(null) }
+    var draft by rememberSaveable { mutableStateOf("") }
 
     // Drag to reorder: we edit a local copy while dragging and save it once on release.
     var working by remember { mutableStateOf<List<Item>?>(null) }
@@ -182,10 +185,8 @@ fun ListScreen(listId: Long, onBack: () -> Unit) {
             ) {
                 item(key = "progress") {
                     PantriCard(Modifier.fillMaxWidth()) {
-                        Row {
-                            Text("$doneCount of ${dbItems.size} done", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                            Text("Swipe right to check, left to delete", style = MaterialTheme.typography.bodySmall, color = p.muted)
-                        }
+                        Text("$doneCount of ${dbItems.size} done", style = MaterialTheme.typography.titleSmall)
+                        Text("Swipe right to check, left to delete", style = MaterialTheme.typography.bodySmall, color = p.muted)
                         Spacer(Modifier.height(10.dp))
                         LinearBar(if (dbItems.isEmpty()) 0f else doneCount.toFloat() / dbItems.size, Modifier.fillMaxWidth())
                     }
@@ -207,7 +208,7 @@ fun ListScreen(listId: Long, onBack: () -> Unit) {
                                 dragOffset = if (dragging) dragOffset else 0f,
                                 modifier = if (dragging) Modifier else Modifier.animateItem(),
                                 onCheck = { vm.toggle(item) },
-                                onTap = { editing = item },
+                                onTap = { editingId = item.id },
                                 onDelete = {
                                     vm.delete(item)
                                     scope.launch {
@@ -239,6 +240,7 @@ fun ListScreen(listId: Long, onBack: () -> Unit) {
         }
     }
 
+    val editing = dbItems.firstOrNull { it.id == editingId }
     if (sheetName != null || editing != null) {
         val item = editing
         ItemSheet(
@@ -246,11 +248,11 @@ fun ListScreen(listId: Long, onBack: () -> Unit) {
             history = item?.let { vm.priceHistory(it.name.trim().lowercase()) },
             favorite = item?.let { i -> products.firstOrNull { it.key == i.name.trim().lowercase() }?.favorite },
             onFavorite = { item?.let { vm.toggleFavorite(it.name.trim().lowercase()) } },
-            onDismiss = { editing = null; sheetName = null },
+            onDismiss = { editingId = null; sheetName = null },
             onSaveNew = { vm.addItem(it); sheetName = null },
-            onSaveEdit = { vm.updateItem(it); editing = null },
+            onSaveEdit = { vm.updateItem(it); editingId = null },
             onDelete = {
-                editing = null
+                editingId = null
                 vm.delete(it)
                 scope.launch { if (snack.showSnackbar("Removed ${it.name}", "Undo") == SnackbarResult.ActionPerformed) vm.restore(it) }
             },
@@ -336,11 +338,11 @@ private fun SwipeableItem(
                 .shadow(if (dragging) 14.dp else 3.dp, shape, ambientColor = p.shadow.copy(alpha = 0.12f), spotColor = p.shadow.copy(alpha = 0.16f))
                 .background(p.card, shape)
                 .clickable(onClick = onTap)
-                .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                .padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             PantriCheck(item.checked, { onCheck() }, label = item.name)
-            Spacer(Modifier.size(10.dp))
+            Spacer(Modifier.size(4.dp))
             IconTile(aisle.icon(), aisle.tone(), size = 34.dp)
             Spacer(Modifier.size(10.dp))
             Column(Modifier.weight(1f)) {
@@ -355,7 +357,7 @@ private fun SwipeableItem(
             if (item.priceCentavos > 0) Pill(pesos(item.priceCentavos), aisle.tone())
             if (!item.checked) {
                 Box(
-                    Modifier.size(40.dp).pointerInput(item.id) {
+                    Modifier.size(48.dp).pointerInput(item.id) {
                         detectDragGesturesAfterLongPress(
                             onDragStart = { onDragStart() },
                             onDrag = { change, amount -> change.consume(); onDrag(amount.y) },
@@ -387,7 +389,7 @@ private fun BottomBar(
             LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(suggestions, key = { it.key }) { s ->
                     Row(
-                        Modifier.background(p.tint(Tone.Green).first, RoundedCornerShape(14.dp)).clickable { onPick(s) }.padding(horizontal = 12.dp, vertical = 8.dp),
+                        Modifier.minimumInteractiveComponentSize().background(p.tint(Tone.Green).first, RoundedCornerShape(14.dp)).clickable(role = Role.Button) { onPick(s) }.padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (s.favorite) { Icon(Icons.Rounded.Favorite, null, Modifier.size(14.dp), tint = p.tomato); Spacer(Modifier.size(4.dp)) }
@@ -436,8 +438,8 @@ private fun BottomBar(
 
 @Composable
 fun TextPrompt(title: String, label: String, initial: String, confirm: String, onDismiss: () -> Unit, onDone: (String) -> Unit) {
-    var text by remember { mutableStateOf(initial) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var text by rememberSaveable { mutableStateOf(initial) }
+    var error by rememberSaveable { mutableStateOf<String?>(null) }
     fun go() { if (text.isBlank()) error = "Enter a name" else onDone(text.trim()) }
     PantriDialog(title, onDismiss, confirm, ::go) {
         PantriField(text, { text = it; error = null }, label, error = error, ime = ImeAction.Done, onDone = ::go)
